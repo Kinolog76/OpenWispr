@@ -5,12 +5,13 @@ Hold a hotkey, speak, release: your words are transcribed locally with
 faster-whisper and inserted into whatever app has focus. Lives in the system
 tray; click the icon to open settings.
 
-    python flow.py            run with tray + console logging
-    python flow.py --settings open the settings window only
-    python flow.py --selftest record 5s and transcribe (mic/model check)
+    python -m openwispr             run with tray
+    python -m openwispr --settings  open the settings window only
+    python -m openwispr --selftest  record 5s and transcribe (mic/model check)
 """
 
 import os
+import re
 import sys
 import time
 import queue
@@ -25,15 +26,14 @@ from PIL import Image, ImageDraw
 import pystray
 from faster_whisper import WhisperModel
 
-import config
-import settings_window
+from openwispr import config, settings_window
 
 try:
     import winsound
 except ImportError:
     winsound = None
 
-# Set True to write flow.log (next to this script) for debugging.
+# Set True to write flow.log (next to this module) for debugging.
 ENABLE_LOG = False
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "flow.log")
 if ENABLE_LOG:
@@ -94,7 +94,6 @@ def _resample(audio, src_rate, dst_rate):
 
 
 def clean_text(text):
-    import re
     if not text:
         return text
     text = re.sub(r"\s+", " ", text.strip())
@@ -414,10 +413,14 @@ def selftest(seconds=5):
     print(text or "(nothing recognized)")
 
 
-if __name__ == "__main__":
+def main():
     if "--selftest" in sys.argv:
         selftest()
     elif "--settings" in sys.argv:
         settings_window.run_standalone()
     else:
         App().run()
+
+
+if __name__ == "__main__":
+    main()

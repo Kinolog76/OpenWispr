@@ -55,11 +55,11 @@ cd OpenWispr
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python flow.py
+python -m openwispr
 ```
 
-Or just double-click **`run.bat`** (creates the venv and installs deps on first
-run). Requires [Python 3.10+](https://www.python.org/downloads/).
+Or just double-click **`scripts\run.bat`** (creates the venv and installs deps
+on first run). Requires [Python 3.10+](https://www.python.org/downloads/).
 
 ## 🎧 Usage
 
@@ -100,16 +100,24 @@ pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
 ## 🛠️ Build the installer
 
 ```powershell
-build.bat                                   # PyInstaller -> dist\OpenWispr\
-"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer.iss   # -> Output\OpenWispr-Setup.exe
+scripts\build.bat                                                          # PyInstaller -> dist\OpenWispr\
+"%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" packaging\installer.iss     # -> Output\OpenWispr-Setup.exe
 ```
 
 - **PyInstaller** bundles the app into `dist\OpenWispr\OpenWispr.exe`
-  (see [`OpenWispr.spec`](OpenWispr.spec)).
+  (see [`packaging/OpenWispr.spec`](packaging/OpenWispr.spec)).
 - **[Inno Setup](https://jrsoftware.org/isdl.php)** wraps it into the installer
-  (see [`installer.iss`](installer.iss)).
+  (see [`packaging/installer.iss`](packaging/installer.iss)).
 - The build needs **Python 3.12** — Python 3.10.0 has a `dis` bug that breaks
   PyInstaller. The app itself runs fine on 3.10+.
+
+## 📁 Project structure
+
+```
+openwispr/    app.py · config.py · settings_window.py · __main__.py   (the app)
+packaging/    OpenWispr.spec · installer.iss · make_icon_file.py · OpenWispr.vbs
+scripts/      run.bat · build.bat · install-autostart.bat · remove-autostart.bat
+```
 
 ## 🧩 Tech stack
 

@@ -1,10 +1,10 @@
-"""A small Tk settings window for OpenWispr, opened from the tray icon."""
+"""A small, scrollable Tk settings window for OpenWispr, opened from the tray."""
 
 import threading
 import tkinter as tk
 from tkinter import ttk
 
-import config
+from openwispr import config
 
 BG = "#f4f6f8"
 CARD = "#ffffff"
@@ -43,22 +43,42 @@ def _style(root):
     except tk.TclError:
         pass
     st.configure(".", background=BG, foreground=TEXT, font=("Segoe UI", 10))
-    st.configure("Card.TLabelframe", background=CARD, borderwidth=0)
-    st.configure("Card.TLabelframe.Label", background=BG, foreground=TEXT,
-                 font=("Segoe UI Semibold", 10))
+    st.configure("TFrame", background=BG)
+    st.configure("Card.TFrame", background=BG)
     st.configure("TLabelframe", background=CARD)
     st.configure("TLabelframe.Label", background=BG, foreground=TEXT,
                  font=("Segoe UI Semibold", 10))
     st.configure("TCheckbutton", background=CARD)
+    st.configure("TRadiobutton", background=CARD)
     st.configure("Muted.TLabel", background=CARD, foreground=MUTED,
                  font=("Segoe UI", 8))
     st.configure("Title.TLabel", background=BG, foreground=TEXT,
                  font=("Segoe UI Semibold", 16))
+    st.configure("Sub.TLabel", background=BG, foreground=MUTED)
+    st.configure("Status.TLabel", background=BG, foreground=ACCENT,
+                 font=("Segoe UI", 9))
     st.configure("Accent.TButton", background=ACCENT, foreground="white",
                  font=("Segoe UI Semibold", 10), borderwidth=0, padding=8)
     st.map("Accent.TButton", background=[("active", "#27ae60")])
-    st.configure("Status.TLabel", background=BG, foreground=ACCENT,
-                 font=("Segoe UI", 9))
+
+
+def _scrollable(parent):
+    """Return an inner frame inside a vertically scrollable canvas."""
+    canvas = tk.Canvas(parent, bg=BG, highlightthickness=0)
+    vsb = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+    canvas.configure(yscrollcommand=vsb.set)
+    vsb.pack(side="right", fill="y")
+    canvas.pack(side="left", fill="both", expand=True)
+
+    inner = ttk.Frame(canvas, style="Card.TFrame")
+    win = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+    inner.bind("<Configure>",
+               lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+    canvas.bind("<Configure>", lambda e: canvas.itemconfig(win, width=e.width))
+    canvas.bind_all("<MouseWheel>",
+                    lambda e: canvas.yview_scroll(int(-e.delta / 120), "units"))
+    return inner
 
 
 def _section(parent, title):
@@ -75,17 +95,26 @@ def _hint(parent, text, row):
 
 def _build(root, cfg, on_save):
     root.title("OpenWispr — настройки")
-    root.geometry("470x720")
-    root.minsize(440, 600)
+    root.geometry("470x560")
+    root.minsize(430, 420)
     _style(root)
 
-    ttk.Label(root, text="OpenWispr", style="Title.TLabel").pack(
-        anchor="w", padx=16, pady=(16, 2))
-    ttk.Label(root, text="Голосовой ввод — настройки",
-              background=BG, foreground=MUTED).pack(anchor="w", padx=16, pady=(0, 12))
+    header = ttk.Frame(root)
+    header.pack(fill="x", padx=16, pady=(16, 8))
+    ttk.Label(header, text="OpenWispr", style="Title.TLabel").pack(anchor="w")
+    ttk.Label(header, text="Голосовой ввод — настройки", style="Sub.TLabel").pack(anchor="w")
+
+    # Fixed bottom bar (status + buttons), packed before the scroll area so it
+    # always stays visible.
+    bottom = ttk.Frame(root)
+    bottom.pack(fill="x", side="bottom", padx=16, pady=(8, 14))
+    status = ttk.Label(bottom, text="", style="Status.TLabel")
+    status.pack(side="left")
+
+    body = _scrollable(root)
 
     # --- Recognition ---
-    rec = _section(root, "Распознавание")
+    rec = _section(body, "Распознавание")
     ttk.Label(rec, text="Модель").grid(row=0, column=0, sticky="w")
     model_var = tk.StringVar(value=cfg["model_size"])
     ttk.Combobox(rec, textvariable=model_var, values=MODELS, state="readonly",
@@ -122,7 +151,7 @@ def _build(root, cfg, on_save):
     _hint(rec, "Обрезает паузы, но может срезать тихую речь.", 11)
 
     # --- Hotkey ---
-    hk = _section(root, "Горячая клавиша")
+    hk = _section(body, "Горячая клавиша")
     ttk.Label(hk, text="Комбинация:").grid(row=0, column=0, columnspan=2, sticky="w")
     mods_now = set(cfg["hotkey_mods"])
     mod_vars = {}
@@ -144,7 +173,7 @@ def _build(root, cfg, on_save):
         row=4, column=0, columnspan=2, sticky="w")
 
     # --- Output ---
-    out = _section(root, "Вставка текста")
+    out = _section(body, "Вставка текста")
     paste_var = tk.BooleanVar(value=cfg["paste_mode"])
     ttk.Checkbutton(out, text="Через буфер обмена (Ctrl+V)",
                     variable=paste_var).grid(row=0, column=0, columnspan=2, sticky="w")
@@ -154,13 +183,10 @@ def _build(root, cfg, on_save):
                     variable=restore_var).grid(row=2, column=0, columnspan=2, sticky="w")
 
     # --- System ---
-    sysf = _section(root, "Система")
+    sysf = _section(body, "Система")
     auto_var = tk.BooleanVar(value=config.autostart_enabled())
     ttk.Checkbutton(sysf, text="Запускать вместе с Windows",
                     variable=auto_var).grid(row=0, column=0, columnspan=2, sticky="w")
-
-    status = ttk.Label(root, text="", style="Status.TLabel")
-    status.pack(anchor="w", padx=16)
 
     def do_save():
         mods = [m for m, v in mod_vars.items() if v.get()] or ["ctrl", "win"]
@@ -179,24 +205,21 @@ def _build(root, cfg, on_save):
         }
         config.set_autostart(auto_var.get())
         on_save(new)
-        status.config(text="Сохранено. Модель/устройство — после перезагрузки модели.")
+        status.config(text="Сохранено ✓")
 
-    btns = ttk.Frame(root)
-    btns.pack(fill="x", padx=16, pady=16, side="bottom")
-    ttk.Button(btns, text="Закрыть", command=root.destroy).pack(side="right")
-    ttk.Button(btns, text="Сохранить", style="Accent.TButton",
+    ttk.Button(bottom, text="Закрыть", command=root.destroy).pack(side="right")
+    ttk.Button(bottom, text="Сохранить", style="Accent.TButton",
                command=do_save).pack(side="right", padx=(0, 8))
 
 
 def run_standalone():
-    """Open the settings window on the main thread (for `flow.py --settings`)."""
+    """Open the settings window on the main thread (for `python -m openwispr --settings`)."""
     root = tk.Tk()
     _build(root, dict(config.load()), lambda c: config.save(c))
     root.mainloop()
 
 
 def _selftest():
-    """Build the UI on a hidden root to verify it renders without errors."""
     root = tk.Tk()
     root.withdraw()
     _build(root, dict(config.DEFAULTS), lambda c: None)

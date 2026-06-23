@@ -1,10 +1,11 @@
 ; Inno Setup script for OpenWispr.
-; 1) Build the app first:  build.bat   (creates dist\OpenWispr\)
-; 2) Open this file in Inno Setup Compiler and press Compile (or run ISCC.exe).
+; 1) Build the app first (from repo root):  scripts\build.bat
+; 2) Compile this:  ISCC.exe packaging\installer.iss
 ; Output: Output\OpenWispr-Setup.exe
+; SourceDir is the repo root, so all paths below are relative to it.
 
 #define MyAppName "OpenWispr"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.0.0"
 #define MyAppExe "OpenWispr.exe"
 
 [Setup]
@@ -15,12 +16,12 @@ AppPublisher=OpenWispr
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
+SourceDir=..
 OutputDir=Output
 OutputBaseFilename=OpenWispr-Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-; Install per-user, no admin rights needed.
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 SetupIconFile=app.ico
@@ -35,7 +36,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "startupicon"; Description: "Запускать при входе в Windows"; GroupDescription: "Автозапуск:"
 
 [Files]
-; Bundle the entire PyInstaller output folder.
 Source: "dist\OpenWispr\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]

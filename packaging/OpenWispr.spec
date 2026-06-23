@@ -1,5 +1,5 @@
 # PyInstaller spec for OpenWispr.
-# Build with:  pyinstaller --noconfirm --clean OpenWispr.spec
+# Run from the repo root:  pyinstaller --noconfirm --clean packaging/OpenWispr.spec
 # Produces a windowed (no-console) app in dist\OpenWispr\OpenWispr.exe
 
 from PyInstaller.utils.hooks import collect_all
@@ -24,8 +24,8 @@ for pkg in (
     hiddenimports += h
 
 a = Analysis(
-    ["flow.py"],
-    pathex=[],
+    ["openwispr/__main__.py"],
+    pathex=["."],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -47,7 +47,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,          # windowed: no console window
+    console=False,
     icon="app.ico",
 )
 

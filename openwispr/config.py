@@ -67,8 +67,8 @@ def _startup_target():
     """What the autostart shortcut should launch."""
     if getattr(sys, "frozen", False):
         return sys.executable  # the installed OpenWispr.exe
-    here = os.path.dirname(os.path.abspath(__file__))
-    vbs = os.path.join(here, "OpenWispr.vbs")  # silent launcher in dev
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    vbs = os.path.join(repo_root, "packaging", "OpenWispr.vbs")  # silent dev launcher
     return vbs if os.path.exists(vbs) else sys.executable
 
 
