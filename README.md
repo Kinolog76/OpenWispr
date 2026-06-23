@@ -13,6 +13,8 @@ into whatever app has focus. A free, open-source take on the core
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![offline](https://img.shields.io/badge/100%25-offline-success)
 
+**English** · [Русский](README.ru.md)
+
 </div>
 
 ---
