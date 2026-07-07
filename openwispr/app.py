@@ -353,20 +353,6 @@ class App:
                 return
             self._set_icon(ICON_LOADING, "OpenWispr — ошибка загрузки модели")
             return
-        # Warm-up inference: the first CUDA encode triggers kernel autotuning
-        # and allocations (10-30 s). Do it now so the first real dictation is
-        # instant. vad_filter=False forces the encoder to actually run.
-        try:
-            t0 = time.time()
-            segments, _ = self.model.transcribe(
-                np.zeros(SAMPLE_RATE // 2, dtype=np.float32),
-                vad_filter=False, beam_size=1)
-            list(segments)
-            log.info("warm-up done in %.1fs", time.time() - t0)
-        except Exception as e:
-            log.warning("warm-up failed (%s)", e)
-            if self._fallback_to_cpu(f"warm-up failed ({e})"):
-                return
         self.model_ready.set()
         self._set_icon(ICON_IDLE, self._ready_title())
         self.icon.update_menu()
