@@ -24,6 +24,7 @@ ACCENT_DARK = "#4A3ED4"
 ACCENT_SOFT = "#EEEBFC"
 HOVER = "#F6F6FB"
 TRACK_OFF = "#D1D5DB"
+DROP_BORDER = "#B7BCC9"
 
 FONT = "Segoe UI"
 
@@ -176,14 +177,10 @@ class Toggle(tk.Canvas):
 
 
 class Select(tk.Frame):
-    """Custom dropdown: bordered field + chevron, borderless popup list.
-
-    Long lists are capped at ~4.5 visible rows with a slim scrollbar and
-    mouse-wheel scrolling.
-    """
+    """Custom dropdown: bordered field + chevron, popup list showing all
+    items (flips upward when there is no room below)."""
 
     ROW_H = 30
-    MAX_VISIBLE = 4.5
 
     def __init__(self, parent, variable, values, width=180, command=None):
         super().__init__(parent, bg="#FFFFFF", highlightbackground=BORDER,
@@ -227,35 +224,16 @@ class Select(tk.Frame):
         popup.attributes("-topmost", True)
         w = self.winfo_width()
         x = self.winfo_rootx()
+        list_h = len(self.values) * self.ROW_H + 4
         y = self.winfo_rooty() + self.winfo_height() + 2
+        # Open upward when the full list would run off the bottom of the screen.
+        if y + list_h > self.winfo_screenheight() - 8:
+            y = self.winfo_rooty() - list_h - 2
+        popup.geometry(f"{w}x{list_h}+{x}+{y}")
 
-        n = len(self.values)
-        scrollable = n > 5
-        list_h = int(self.ROW_H * self.MAX_VISIBLE) if scrollable \
-            else n * self.ROW_H
-        popup.geometry(f"{w}x{list_h + 2}+{x}+{y}")
-
-        box = tk.Frame(popup, bg="#FFFFFF", highlightbackground=BORDER,
-                       highlightthickness=1)
-        box.pack(fill="both", expand=True)
-
-        if scrollable:
-            canvas = tk.Canvas(box, bg="#FFFFFF", highlightthickness=0,
-                               width=w - 10, height=list_h)
-            sb = ttk.Scrollbar(box, orient="vertical", command=canvas.yview,
-                               style="Slim.Vertical.TScrollbar")
-            canvas.configure(yscrollcommand=sb.set)
-            sb.pack(side="right", fill="y", padx=(0, 1), pady=1)
-            canvas.pack(side="left", fill="both", expand=True)
-            holder = tk.Frame(canvas, bg="#FFFFFF")
-            win = canvas.create_window((0, 0), window=holder, anchor="nw",
-                                       width=w - 12)
-            holder.bind("<Configure>", lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")))
-            popup.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(
-                int(-e.delta / 120), "units"))
-        else:
-            holder = box
+        holder = tk.Frame(popup, bg="#FFFFFF",
+                          highlightbackground=DROP_BORDER, highlightthickness=2)
+        holder.pack(fill="both", expand=True)
 
         current = self.var.get()
         for val in self.values:
@@ -285,7 +263,6 @@ class Select(tk.Frame):
         import time
         if self._popup is not None:
             try:
-                self._popup.unbind_all("<MouseWheel>")
                 self._popup.destroy()
             except Exception:
                 pass
@@ -414,18 +391,6 @@ def _style(root):
     st.map("TEntry", bordercolor=[("focus", ACCENT)])
 
     st.configure("Horizontal.TScale", background=CARD, troughcolor=BORDER)
-
-    # Slim arrow-less scrollbar for Select dropdowns.
-    st.layout("Slim.Vertical.TScrollbar",
-              [("Vertical.Scrollbar.trough",
-                {"children": [("Vertical.Scrollbar.thumb",
-                               {"expand": "1", "sticky": "nswe"})],
-                 "sticky": "ns"})])
-    st.configure("Slim.Vertical.TScrollbar", background=TRACK_OFF,
-                 troughcolor="#FFFFFF", bordercolor="#FFFFFF",
-                 lightcolor=TRACK_OFF, darkcolor=TRACK_OFF,
-                 arrowsize=0, width=6)
-    st.map("Slim.Vertical.TScrollbar", background=[("active", FAINT)])
 
     st.configure("Accent.TButton", background=ACCENT, foreground="#FFFFFF",
                  font=(FONT + " Semibold", 10), borderwidth=0, padding=(22, 9))
