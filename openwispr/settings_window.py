@@ -175,6 +175,104 @@ class Toggle(tk.Canvas):
         self.create_oval(x, 3, x + h - 6, h - 3, fill="#FFFFFF", outline="#FFFFFF")
 
 
+class Select(tk.Frame):
+    """Custom dropdown: bordered field + chevron, borderless popup list."""
+
+    ROW_H = 30
+
+    def __init__(self, parent, variable, values, width=180, command=None):
+        super().__init__(parent, bg="#FFFFFF", highlightbackground=BORDER,
+                         highlightthickness=1, cursor="hand2",
+                         width=width, height=32)
+        self.pack_propagate(False)
+        self.var = variable
+        self.values = list(values)
+        self.command = command
+        self._popup = None
+
+        self.label = tk.Label(self, textvariable=variable, bg="#FFFFFF",
+                              fg=TEXT, font=(FONT, 10), anchor="w", padx=10)
+        self.label.pack(side="left", fill="both", expand=True)
+        self.arrow = tk.Canvas(self, width=24, height=30, bg="#FFFFFF",
+                               highlightthickness=0)
+        self.arrow.create_line(7, 13, 12, 18, fill=MUTED, width=2)
+        self.arrow.create_line(12, 18, 17, 13, fill=MUTED, width=2)
+        self.arrow.pack(side="right")
+
+        for w in (self, self.label, self.arrow):
+            w.bind("<Button-1>", lambda e: self._toggle())
+        self.bind("<Enter>", lambda e: self.configure(highlightbackground=ACCENT))
+        self.bind("<Leave>", lambda e: self.configure(highlightbackground=BORDER))
+
+    def _toggle(self):
+        if self._popup is not None:
+            self._close()
+        else:
+            self._open()
+
+    def _open(self):
+        popup = tk.Toplevel(self)
+        popup.overrideredirect(True)
+        popup.attributes("-topmost", True)
+        w = self.winfo_width()
+        x = self.winfo_rootx()
+        y = self.winfo_rooty() + self.winfo_height() + 2
+        popup.geometry(f"{w}x{len(self.values) * self.ROW_H + 2}+{x}+{y}")
+        box = tk.Frame(popup, bg="#FFFFFF", highlightbackground=BORDER,
+                       highlightthickness=1)
+        box.pack(fill="both", expand=True)
+        current = self.var.get()
+        for val in self.values:
+            is_cur = (val == current)
+            row = tk.Label(box, text=val, anchor="w", padx=10,
+                           bg=ACCENT_SOFT if is_cur else "#FFFFFF",
+                           fg=ACCENT_DARK if is_cur else TEXT,
+                           font=(FONT, 10), cursor="hand2")
+            row.pack(fill="x", ipady=5)
+            row.bind("<Button-1>", lambda e, v=val: self._pick(v))
+            row.bind("<Enter>", lambda e, r=row: r.configure(bg=ACCENT_SOFT))
+            row.bind("<Leave>", lambda e, r=row, c=is_cur: r.configure(
+                bg=ACCENT_SOFT if c else "#FFFFFF"))
+        popup.bind("<Escape>", lambda e: self._close())
+        popup.bind("<FocusOut>", lambda e: self._close())
+        popup.focus_force()
+        self._popup = popup
+
+    def _pick(self, value):
+        self.var.set(value)
+        self._close()
+        if self.command:
+            self.command(value)
+
+    def _close(self):
+        if self._popup is not None:
+            try:
+                self._popup.destroy()
+            except Exception:
+                pass
+            self._popup = None
+
+
+class FlatButton(tk.Label):
+    """tk-based button with reliable colors (ttk text was unreadable on
+    some systems)."""
+
+    def __init__(self, parent, text, command, primary=False):
+        if primary:
+            bg, fg, hbg, hfg = ACCENT, "#FFFFFF", ACCENT_DARK, "#FFFFFF"
+            border = ACCENT
+        else:
+            bg, fg, hbg, hfg = "#FFFFFF", MUTED, HOVER, TEXT
+            border = BORDER
+        super().__init__(parent, text=text, bg=bg, fg=fg,
+                         font=(FONT + " Semibold", 10), padx=24, pady=8,
+                         cursor="hand2", highlightbackground=border,
+                         highlightthickness=1)
+        self.bind("<Button-1>", lambda e: command())
+        self.bind("<Enter>", lambda e: self.configure(bg=hbg, fg=hfg))
+        self.bind("<Leave>", lambda e: self.configure(bg=bg, fg=fg))
+
+
 class Placeholder:
     """Grey placeholder text for a ttk.Entry."""
 
@@ -384,13 +482,13 @@ def _build(root, cfg, on_save, model_ready_fn=None):
     rec = _card(pages["recognition"])
 
     model_var = tk.StringVar(value=cfg["model_size"])
+    model_hint_var = tk.StringVar(value=MODEL_HINTS.get(cfg["model_size"], ""))
     mbox = ttk.Frame(rec, style="Card.TFrame")
     model_dot = tk.Label(mbox, text="", bg=CARD, font=(FONT, 9))
     model_dot.pack(side="left", padx=(0, 8))
-    model_cb = ttk.Combobox(mbox, textvariable=model_var, values=MODELS,
-                            state="readonly", width=15, cursor="hand2")
-    model_cb.pack(side="left")
-    model_hint_var = tk.StringVar(value=MODEL_HINTS.get(cfg["model_size"], ""))
+    Select(mbox, model_var, MODELS, width=160,
+           command=lambda v: model_hint_var.set(MODEL_HINTS.get(v, ""))
+           ).pack(side="left")
 
     mleft = ttk.Frame(rec, style="Card.TFrame")
     mleft.grid(row=0, column=0, sticky="w", pady=(0, 12))
@@ -398,9 +496,6 @@ def _build(root, cfg, on_save, model_ready_fn=None):
     ttk.Label(mleft, textvariable=model_hint_var, style="Muted.TLabel",
               wraplength=280, justify="left").pack(anchor="w", pady=(2, 0))
     mbox.grid(row=0, column=1, sticky="e", padx=(16, 0), pady=(0, 12))
-
-    model_cb.bind("<<ComboboxSelected>>",
-                  lambda e: model_hint_var.set(MODEL_HINTS.get(model_var.get(), "")))
 
     def poll_model_status():
         if model_ready_fn is None:
@@ -413,24 +508,18 @@ def _build(root, cfg, on_save, model_ready_fn=None):
     poll_model_status()
 
     lang_var = tk.StringVar(value=cfg["language"] or "auto")
-    lang_cb = ttk.Combobox(rec, textvariable=lang_var, values=LANGS, width=15,
-                           cursor="hand2")
     _setting_row(rec, 1, "Язык",
                  "Код языка (ru, en…) быстрее и точнее. auto — определять по речи.",
-                 lang_cb)
+                 Select(rec, lang_var, LANGS, width=160))
 
     device_var = tk.StringVar(value=cfg["device"])
-    device_cb = ttk.Combobox(rec, textvariable=device_var, values=DEVICES,
-                             state="readonly", width=15, cursor="hand2")
     _setting_row(rec, 2, "Устройство",
                  "cuda — NVIDIA GPU (нужны библиотеки CUDA). Иначе cpu.",
-                 device_cb)
+                 Select(rec, device_var, DEVICES, width=160))
 
     compute_var = tk.StringVar(value=cfg["compute_type"])
-    compute_cb = ttk.Combobox(rec, textvariable=compute_var, values=COMPUTES,
-                              state="readonly", width=15, cursor="hand2")
     _setting_row(rec, 3, "Вычисления", "int8 для CPU, float16 для GPU.",
-                 compute_cb)
+                 Select(rec, compute_var, COMPUTES, width=160))
 
     beam_var = tk.IntVar(value=cfg["beam_size"])
     beam_box = ttk.Frame(rec, style="Card.TFrame")
@@ -444,8 +533,9 @@ def _build(root, cfg, on_save, model_ready_fn=None):
     ticks.pack_propagate(False)
     for i in range(1, 6):
         # Slider knob travels between ~8px margins on a 150px scale.
-        tk.Label(ticks, text=str(i), bg=CARD, fg=FAINT,
-                 font=(FONT, 7)).place(x=8 + (i - 1) * 33.5, anchor="n")
+        tk.Label(ticks, text=str(i), bg=CARD, fg=ACCENT,
+                 font=(FONT + " Semibold", 7)).place(x=8 + (i - 1) * 33.5,
+                                                     anchor="n")
     beam_badge = tk.Label(beam_box, text=str(beam_var.get()), bg=CARD,
                           fg=ACCENT_DARK, font=(FONT + " Semibold", 10),
                           highlightbackground=BORDER, highlightthickness=1,
@@ -554,11 +644,9 @@ def _build(root, cfg, on_save, model_ready_fn=None):
     mic_var = tk.StringVar(
         value=cfg["input_device"] if cfg["input_device"] in mic_names
         else "По умолчанию")
-    mic_cb = ttk.Combobox(s1, textvariable=mic_var,
-                          values=["По умолчанию"] + mic_names,
-                          state="readonly", width=24, cursor="hand2")
     _setting_row(s1, 0, "Микрофон",
-                 "«По умолчанию» — системный микрофон Windows.", mic_cb)
+                 "«По умолчанию» — системный микрофон Windows.",
+                 Select(s1, mic_var, ["По умолчанию"] + mic_names, width=250))
 
     auto_var = tk.BooleanVar(value=config.autostart_enabled())
     _setting_row(s1, 1, "Запуск с системой",
@@ -640,12 +728,12 @@ def _build(root, cfg, on_save, model_ready_fn=None):
         status.config(text="Сохранено ✓")
         status.after(2500, lambda: status.config(text=""))
 
-    ttk.Button(bottom, text="Закрыть", style="Ghost.TButton", cursor="hand2",
-               command=root.destroy).pack(side="right")
-    ttk.Button(bottom, text="Сохранить", style="Accent.TButton", cursor="hand2",
-               command=do_save).pack(side="right", padx=(0, 10))
+    FlatButton(bottom, "Закрыть", root.destroy).pack(side="right")
+    FlatButton(bottom, "Сохранить", do_save, primary=True).pack(
+        side="right", padx=(0, 10))
 
     _center(root, 780, 620)
+    root.resizable(False, False)
 
 
 def run_standalone():
