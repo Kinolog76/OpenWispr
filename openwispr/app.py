@@ -53,8 +53,8 @@ try:
 except ImportError:
     winsound = None
 
-# Set True to write flow.log (next to this module) for debugging.
-ENABLE_LOG = False
+# Set OPENWISPR_LOG=1 to write flow.log (next to this module) for debugging.
+ENABLE_LOG = os.environ.get("OPENWISPR_LOG") == "1"
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "flow.log")
 if ENABLE_LOG:
     logging.basicConfig(
@@ -161,6 +161,38 @@ def beep(freq, dur=120):
             pass
 
 
+def resolve_input_device(name):
+    """Map a saved device name to a sounddevice index; None = system default."""
+    if not name:
+        return None
+    try:
+        for i, dev in enumerate(sd.query_devices()):
+            if dev["max_input_channels"] > 0 and dev["name"] == name:
+                return i
+    except Exception:
+        log.exception("could not enumerate audio devices")
+    log.warning("input device %r not found; using default", name)
+    return None
+
+
+# Windows pseudo-devices that just alias the system default input.
+_DEVICE_ALIASES = ("Microsoft Sound Mapper", "Первичный драйвер",
+                   "Primary Sound Capture")
+
+
+def list_input_devices():
+    """Unique input device names (Windows lists each across several host APIs)."""
+    names = []
+    try:
+        for dev in sd.query_devices():
+            if (dev["max_input_channels"] > 0 and dev["name"] not in names
+                    and not dev["name"].startswith(_DEVICE_ALIASES)):
+                names.append(dev["name"])
+    except Exception:
+        pass
+    return names
+
+
 class Recorder:
     """Captures microphone audio into memory while recording."""
 
@@ -169,6 +201,7 @@ class Recorder:
         self._stream = None
         self.recording = False
         self._rate = SAMPLE_RATE
+        self._device = None
         self._lock = threading.Lock()
 
     def _callback(self, indata, frames, time_info, status):
@@ -180,24 +213,30 @@ class Recorder:
     def _open_stream(self):
         try:
             stream = sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS,
+                                    device=self._device,
                                     dtype="float32", callback=self._callback)
             stream.start()
             self._stream = stream
             return SAMPLE_RATE
         except Exception as e:
             log.warning("16 kHz failed (%s); using device default", e)
-            rate = int(sd.query_devices(kind="input")["default_samplerate"])
+            if self._device is not None:
+                rate = int(sd.query_devices(self._device)["default_samplerate"])
+            else:
+                rate = int(sd.query_devices(kind="input")["default_samplerate"])
             stream = sd.InputStream(samplerate=rate, channels=CHANNELS,
+                                    device=self._device,
                                     dtype="float32", callback=self._callback)
             stream.start()
             self._stream = stream
             return rate
 
-    def start(self):
+    def start(self, device=None):
         with self._lock:
             if self.recording:
                 return
             self._frames = []
+            self._device = device
             self.recording = True
             try:
                 self._rate = self._open_stream()
@@ -390,9 +429,10 @@ class App:
             if active:
                 beep(220)
             return
+        device = resolve_input_device(self.cfg["input_device"])
         if self.cfg["push_to_talk"]:
             if active:
-                self.recorder.start()
+                self.recorder.start(device)
                 self._set_icon(ICON_REC, "OpenWispr — запись")
             else:
                 self._stop_and_send()
@@ -400,7 +440,7 @@ class App:
             if self.recorder.recording:
                 self._stop_and_send()
             else:
-                self.recorder.start()
+                self.recorder.start(device)
                 self._set_icon(ICON_REC, "OpenWispr — запись")
 
     def _stop_and_send(self):

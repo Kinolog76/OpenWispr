@@ -6,6 +6,14 @@ from tkinter import ttk
 
 from openwispr import config
 
+
+def _input_devices():
+    try:
+        from openwispr import app
+        return app.list_input_devices()
+    except Exception:
+        return []
+
 # Flat design palette: neutral surfaces, teal accent.
 BG = "#F5F7F8"
 CARD = "#FFFFFF"
@@ -54,7 +62,8 @@ def open_settings(app):
         try:
             _enable_dpi_awareness()
             root = tk.Tk()
-            _build(root, dict(app.cfg), app.apply_config)
+            _build(root, dict(app.cfg), app.apply_config,
+                   model_ready_fn=app.model_ready.is_set)
             root.mainloop()
         finally:
             app._settings_open = False
@@ -165,7 +174,7 @@ def _center(root, w, h):
     root.geometry(f"{w}x{h}+{x}+{y}")
 
 
-def _build(root, cfg, on_save):
+def _build(root, cfg, on_save, model_ready_fn=None):
     root.title("OpenWispr — настройки")
     root.minsize(460, 480)
     _style(root)
@@ -199,32 +208,61 @@ def _build(root, cfg, on_save):
     # ============ Tab: Распознавание ============
     rec = _card(tab_rec)
 
+    # Model label + load-status dot share the left cell.
+    mrow = ttk.Frame(rec, style="Card.TFrame")
+    ttk.Label(mrow, text="Модель", style="Card.TLabel").pack(side="left")
+    model_dot = tk.Label(mrow, text="", bg=CARD, font=(FONT, 9))
+    model_dot.pack(side="left", padx=(8, 0))
+    mrow.grid(row=0, column=0, sticky="w", pady=(0, 2))
+
     model_var = tk.StringVar(value=cfg["model_size"])
     model_cb = ttk.Combobox(rec, textvariable=model_var, values=MODELS,
                             state="readonly", width=16, cursor="hand2")
-    model_hint = _row(rec, 0, "Модель", model_cb,
-                      MODEL_HINTS.get(cfg["model_size"], ""))
+    model_cb.grid(row=0, column=1, sticky="e", pady=(0, 2))
+    model_hint = ttk.Label(rec, text=MODEL_HINTS.get(cfg["model_size"], ""),
+                           style="Muted.TLabel")
+    model_hint.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
     def on_model_change(_e=None):
         model_hint.config(text=MODEL_HINTS.get(model_var.get(), ""))
     model_cb.bind("<<ComboboxSelected>>", on_model_change)
 
+    def poll_model_status():
+        if model_ready_fn is None:
+            return
+        if model_ready_fn():
+            model_dot.config(text="● загружена", fg=ACCENT)
+        else:
+            model_dot.config(text="◌ загрузка…", fg=MUTED)
+        root.after(1000, poll_model_status)
+    poll_model_status()
+
+    mic_names = _input_devices()
+    mic_var = tk.StringVar(
+        value=cfg["input_device"] if cfg["input_device"] in mic_names
+        else "По умолчанию")
+    mic_cb = ttk.Combobox(rec, textvariable=mic_var,
+                          values=["По умолчанию"] + mic_names,
+                          state="readonly", width=26, cursor="hand2")
+    _row(rec, 2, "Микрофон", mic_cb,
+         "«По умолчанию» — системный микрофон Windows.")
+
     lang_var = tk.StringVar(value=cfg["language"] or "auto")
     lang_cb = ttk.Combobox(rec, textvariable=lang_var, values=LANGS, width=16,
                            cursor="hand2")
-    _row(rec, 2, "Язык", lang_cb,
-         "Код языка (ru, en…) быстрее и точнее, чем auto.")
+    _row(rec, 4, "Язык", lang_cb,
+         "Код языка (ru, en…) быстрее и точнее. auto — определять по речи.")
 
     device_var = tk.StringVar(value=cfg["device"])
     device_cb = ttk.Combobox(rec, textvariable=device_var, values=DEVICES,
                              state="readonly", width=16, cursor="hand2")
-    _row(rec, 4, "Устройство", device_cb,
+    _row(rec, 6, "Устройство", device_cb,
          "cuda — NVIDIA GPU (нужны библиотеки CUDA). Иначе cpu.")
 
     compute_var = tk.StringVar(value=cfg["compute_type"])
     compute_cb = ttk.Combobox(rec, textvariable=compute_var, values=COMPUTES,
                               state="readonly", width=16, cursor="hand2")
-    _row(rec, 6, "Вычисления", compute_cb, "int8 для CPU, float16 для GPU.")
+    _row(rec, 8, "Вычисления", compute_cb, "int8 для CPU, float16 для GPU.")
 
     # Beam: slider with a live value label.
     beam_var = tk.IntVar(value=cfg["beam_size"])
@@ -237,11 +275,11 @@ def _build(root, cfg, on_save):
                                               beam_label.config(text=str(round(float(v))))))
     beam_scale.pack(side="left", padx=(0, 8))
     beam_label.pack(side="left")
-    _row(rec, 8, "Точность (beam)", beam_box,
+    _row(rec, 10, "Точность (beam)", beam_box,
          "1 — максимально быстро, 5 — максимально точно.")
 
     vad_var = tk.BooleanVar(value=cfg["vad_filter"])
-    _check(rec, 10, "Фильтр тишины (VAD)", vad_var,
+    _check(rec, 12, "Фильтр тишины (VAD)", vad_var,
            "Обрезает паузы — меньше «галлюцинаций» на тишине.")
 
     # ============ Tab: Текст ============
@@ -326,6 +364,7 @@ def _build(root, cfg, on_save):
             "device": device_var.get(),
             "compute_type": compute_var.get(),
             "language": "" if lang == "auto" else lang,
+            "input_device": "" if mic_var.get() == "По умолчанию" else mic_var.get(),
             "beam_size": int(beam_var.get()),
             "vad_filter": vad_var.get(),
             "auto_punctuation": punct_var.get(),

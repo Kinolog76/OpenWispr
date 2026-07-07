@@ -12,6 +12,7 @@ DEFAULTS = {
     "device": "cpu",            # cpu | cuda
     "compute_type": "int8",     # int8 (cpu) | float16 (gpu) | int8_float16
     "language": "ru",           # "" = auto-detect, else ru/en/uk/...
+    "input_device": "",         # "" = system default mic, else device name
     "beam_size": 5,             # 1 = fastest, 5 = noticeably more accurate
     "vad_filter": True,         # trim silence (tuned padding keeps quiet speech)
     "auto_punctuation": True,   # nudge the model to punctuate via initial prompt
