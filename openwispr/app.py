@@ -11,7 +11,6 @@ tray; click the icon to open settings.
 """
 
 import os
-import re
 import sys
 import time
 import queue
@@ -26,7 +25,7 @@ from PIL import Image, ImageDraw
 import pystray
 from faster_whisper import WhisperModel
 
-from openwispr import config, settings_window
+from openwispr import config, settings_window, textproc
 
 try:
     import winsound
@@ -93,13 +92,44 @@ def _resample(audio, src_rate, dst_rate):
     return np.interp(x_new, x_old, audio).astype(np.float32)
 
 
-def clean_text(text):
-    if not text:
-        return text
-    text = re.sub(r"\s+", " ", text.strip())
-    text = re.sub(r"\b(?:um|uh|erm|hmm)\b[,]?\s*", "", text, flags=re.IGNORECASE)
-    text = text.strip()
-    return text[0].upper() + text[1:] if text else text
+# Segments that Whisper itself marks as likely non-speech are dropped: this
+# is where hallucinated phrases on silence/breath noise come from.
+NO_SPEECH_MAX = 0.6
+LOGPROB_MIN = -1.0
+
+# Padding keeps quiet speech at utterance edges; short min-silence still cuts
+# the long pauses that make Whisper hallucinate.
+VAD_PARAMETERS = {"min_silence_duration_ms": 300, "speech_pad_ms": 400}
+
+
+def transcribe(model, cfg, audio):
+    """Run the model and return cleaned text (shared by app and selftest)."""
+    language = cfg["language"] or None
+    prompt = textproc.initial_prompt(
+        language if cfg["auto_punctuation"] else None,
+        cfg["custom_words"],
+    )
+    segments, info = model.transcribe(
+        audio,
+        language=language,
+        vad_filter=cfg["vad_filter"],
+        vad_parameters=VAD_PARAMETERS,
+        beam_size=cfg["beam_size"],
+        initial_prompt=prompt,
+        condition_on_previous_text=False,
+        temperature=0.0,
+    )
+    parts = []
+    for s in segments:
+        if s.no_speech_prob > NO_SPEECH_MAX and s.avg_logprob < LOGPROB_MIN:
+            log.info("dropped segment (no_speech=%.2f logprob=%.2f): %s",
+                     s.no_speech_prob, s.avg_logprob, s.text)
+            continue
+        parts.append(s.text)
+    text = textproc.clean(" ".join(parts),
+                          spoken_punctuation=cfg["spoken_punctuation"],
+                          ensure_period=cfg["auto_punctuation"])
+    return text, info
 
 
 def beep(freq, dur=120):
@@ -274,13 +304,7 @@ class App:
         if len(audio) / SAMPLE_RATE < 0.3:
             return
         try:
-            segments, _ = self.model.transcribe(
-                audio,
-                language=self.cfg["language"] or None,
-                vad_filter=self.cfg["vad_filter"],
-                beam_size=self.cfg["beam_size"],
-            )
-            text = clean_text("".join(s.text for s in segments))
+            text, _ = transcribe(self.model, self.cfg, audio)
         except Exception:
             log.exception("transcription error")
             return
@@ -405,10 +429,7 @@ def selftest(seconds=5):
     if audio is None:
         print("ERROR: no audio captured.")
         return
-    segments, info = model.transcribe(audio, language=cfg["language"] or None,
-                                      vad_filter=cfg["vad_filter"],
-                                      beam_size=cfg["beam_size"])
-    text = clean_text("".join(s.text for s in segments))
+    text, info = transcribe(model, cfg, audio)
     print("\n==== RESULT (lang=%s) ====" % getattr(info, "language", "?"))
     print(text or "(nothing recognized)")
 

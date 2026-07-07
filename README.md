@@ -77,11 +77,15 @@ Everything is configurable from the tray settings window (stored in
 
 | Setting | What it does |
 |---|---|
-| **Model** | `tiny`/`base`/`small`/`medium`/`large-v3` — bigger = more accurate, slower. |
+| **Model** | `tiny`/`base`/`small`/`medium`/`large-v3`/`large-v3-turbo` — bigger = more accurate, slower. |
 | **Device** | `cpu`, or `cuda` for an NVIDIA GPU (needs CUDA libraries). |
 | **Compute** | `int8` for CPU, `float16` for GPU. |
 | **Language** | A code like `ru`/`en` is faster and more accurate than auto-detect. |
-| **Beam size** | `1` = fastest, `5` = slightly more accurate. |
+| **Beam size** | `1` = fastest, `5` = more accurate (default). |
+| **VAD filter** | Trims silence — fewer hallucinated phrases on pauses. |
+| **Auto punctuation** | Nudges the model to produce commas, periods and proper capitalization. |
+| **Spoken punctuation** | Say «запятая», «точка», "new line" to insert the symbol. Off by default. |
+| **Custom dictionary** | Comma-separated names/terms the model should recognize. |
 | **Hotkey** | Any combo of Ctrl/Win/Alt/Shift; push-to-talk or toggle. |
 | **Paste mode** | Clipboard `Ctrl+V` (default) or character-by-character typing. |
 | **Autostart** | Launch with Windows. |

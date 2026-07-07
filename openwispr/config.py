@@ -8,12 +8,15 @@ import subprocess
 APP_NAME = "OpenWispr"
 
 DEFAULTS = {
-    "model_size": "small",      # tiny | base | small | medium | large-v3
+    "model_size": "small",      # tiny | base | small | medium | large-v3 | large-v3-turbo
     "device": "cpu",            # cpu | cuda
     "compute_type": "int8",     # int8 (cpu) | float16 (gpu) | int8_float16
     "language": "ru",           # "" = auto-detect, else ru/en/uk/...
-    "beam_size": 1,             # 1 = fastest, 5 = a touch more accurate
-    "vad_filter": False,        # trim silence (can drop quiet speech)
+    "beam_size": 5,             # 1 = fastest, 5 = noticeably more accurate
+    "vad_filter": True,         # trim silence (tuned padding keeps quiet speech)
+    "auto_punctuation": True,   # nudge the model to punctuate via initial prompt
+    "spoken_punctuation": False,  # say "запятая" / "comma" to insert punctuation
+    "custom_words": "",         # comma-separated names/terms fed to the model
     "hotkey_mods": ["ctrl", "win"],   # any of: ctrl, win, alt, shift
     "push_to_talk": True,       # True = hold combo; False = tap to toggle
     "paste_mode": True,         # True = clipboard Ctrl+V; False = type chars

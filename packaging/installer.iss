@@ -5,7 +5,7 @@
 ; SourceDir is the repo root, so all paths below are relative to it.
 
 #define MyAppName "OpenWispr"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppExe "OpenWispr.exe"
 
 [Setup]
