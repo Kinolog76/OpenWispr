@@ -176,9 +176,14 @@ class Toggle(tk.Canvas):
 
 
 class Select(tk.Frame):
-    """Custom dropdown: bordered field + chevron, borderless popup list."""
+    """Custom dropdown: bordered field + chevron, borderless popup list.
+
+    Long lists are capped at ~4.5 visible rows with a slim scrollbar and
+    mouse-wheel scrolling.
+    """
 
     ROW_H = 30
+    MAX_VISIBLE = 4.5
 
     def __init__(self, parent, variable, values, width=180, command=None):
         super().__init__(parent, bg="#FFFFFF", highlightbackground=BORDER,
@@ -189,6 +194,7 @@ class Select(tk.Frame):
         self.values = list(values)
         self.command = command
         self._popup = None
+        self._closed_at = 0.0
 
         self.label = tk.Label(self, textvariable=variable, bg="#FFFFFF",
                               fg=TEXT, font=(FONT, 10), anchor="w", padx=10)
@@ -205,10 +211,15 @@ class Select(tk.Frame):
         self.bind("<Leave>", lambda e: self.configure(highlightbackground=BORDER))
 
     def _toggle(self):
+        import time
         if self._popup is not None:
             self._close()
-        else:
-            self._open()
+            return
+        # Clicking the field while the popup is open fires FocusOut (closing
+        # it) before this handler runs; don't instantly reopen in that case.
+        if time.monotonic() - self._closed_at < 0.25:
+            return
+        self._open()
 
     def _open(self):
         popup = tk.Toplevel(self)
@@ -217,14 +228,39 @@ class Select(tk.Frame):
         w = self.winfo_width()
         x = self.winfo_rootx()
         y = self.winfo_rooty() + self.winfo_height() + 2
-        popup.geometry(f"{w}x{len(self.values) * self.ROW_H + 2}+{x}+{y}")
+
+        n = len(self.values)
+        scrollable = n > 5
+        list_h = int(self.ROW_H * self.MAX_VISIBLE) if scrollable \
+            else n * self.ROW_H
+        popup.geometry(f"{w}x{list_h + 2}+{x}+{y}")
+
         box = tk.Frame(popup, bg="#FFFFFF", highlightbackground=BORDER,
                        highlightthickness=1)
         box.pack(fill="both", expand=True)
+
+        if scrollable:
+            canvas = tk.Canvas(box, bg="#FFFFFF", highlightthickness=0,
+                               width=w - 10, height=list_h)
+            sb = ttk.Scrollbar(box, orient="vertical", command=canvas.yview,
+                               style="Slim.Vertical.TScrollbar")
+            canvas.configure(yscrollcommand=sb.set)
+            sb.pack(side="right", fill="y", padx=(0, 1), pady=1)
+            canvas.pack(side="left", fill="both", expand=True)
+            holder = tk.Frame(canvas, bg="#FFFFFF")
+            win = canvas.create_window((0, 0), window=holder, anchor="nw",
+                                       width=w - 12)
+            holder.bind("<Configure>", lambda e: canvas.configure(
+                scrollregion=canvas.bbox("all")))
+            popup.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(
+                int(-e.delta / 120), "units"))
+        else:
+            holder = box
+
         current = self.var.get()
         for val in self.values:
             is_cur = (val == current)
-            row = tk.Label(box, text=val, anchor="w", padx=10,
+            row = tk.Label(holder, text=val, anchor="w", padx=10,
                            bg=ACCENT_SOFT if is_cur else "#FFFFFF",
                            fg=ACCENT_DARK if is_cur else TEXT,
                            font=(FONT, 10), cursor="hand2")
@@ -233,6 +269,7 @@ class Select(tk.Frame):
             row.bind("<Enter>", lambda e, r=row: r.configure(bg=ACCENT_SOFT))
             row.bind("<Leave>", lambda e, r=row, c=is_cur: r.configure(
                 bg=ACCENT_SOFT if c else "#FFFFFF"))
+
         popup.bind("<Escape>", lambda e: self._close())
         popup.bind("<FocusOut>", lambda e: self._close())
         popup.focus_force()
@@ -245,12 +282,15 @@ class Select(tk.Frame):
             self.command(value)
 
     def _close(self):
+        import time
         if self._popup is not None:
             try:
+                self._popup.unbind_all("<MouseWheel>")
                 self._popup.destroy()
             except Exception:
                 pass
             self._popup = None
+            self._closed_at = time.monotonic()
 
 
 class FlatButton(tk.Label):
@@ -374,6 +414,18 @@ def _style(root):
     st.map("TEntry", bordercolor=[("focus", ACCENT)])
 
     st.configure("Horizontal.TScale", background=CARD, troughcolor=BORDER)
+
+    # Slim arrow-less scrollbar for Select dropdowns.
+    st.layout("Slim.Vertical.TScrollbar",
+              [("Vertical.Scrollbar.trough",
+                {"children": [("Vertical.Scrollbar.thumb",
+                               {"expand": "1", "sticky": "nswe"})],
+                 "sticky": "ns"})])
+    st.configure("Slim.Vertical.TScrollbar", background=TRACK_OFF,
+                 troughcolor="#FFFFFF", bordercolor="#FFFFFF",
+                 lightcolor=TRACK_OFF, darkcolor=TRACK_OFF,
+                 arrowsize=0, width=6)
+    st.map("Slim.Vertical.TScrollbar", background=[("active", FAINT)])
 
     st.configure("Accent.TButton", background=ACCENT, foreground="#FFFFFF",
                  font=(FONT + " Semibold", 10), borderwidth=0, padding=(22, 9))
