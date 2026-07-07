@@ -237,16 +237,6 @@ def _build(root, cfg, on_save, model_ready_fn=None):
         root.after(1000, poll_model_status)
     poll_model_status()
 
-    mic_names = _input_devices()
-    mic_var = tk.StringVar(
-        value=cfg["input_device"] if cfg["input_device"] in mic_names
-        else "По умолчанию")
-    mic_cb = ttk.Combobox(rec, textvariable=mic_var,
-                          values=["По умолчанию"] + mic_names,
-                          state="readonly", width=26, cursor="hand2")
-    _row(rec, 2, "Микрофон", mic_cb,
-         "«По умолчанию» — системный микрофон Windows.")
-
     lang_var = tk.StringVar(value=cfg["language"] or "auto")
     lang_cb = ttk.Combobox(rec, textvariable=lang_var, values=LANGS, width=16,
                            cursor="hand2")
@@ -354,8 +344,19 @@ def _build(root, cfg, on_save, model_ready_fn=None):
 
     # ============ Tab: Система ============
     sysf = _card(tab_sys)
+
+    mic_names = _input_devices()
+    mic_var = tk.StringVar(
+        value=cfg["input_device"] if cfg["input_device"] in mic_names
+        else "По умолчанию")
+    mic_cb = ttk.Combobox(sysf, textvariable=mic_var,
+                          values=["По умолчанию"] + mic_names,
+                          state="readonly", width=26, cursor="hand2")
+    _row(sysf, 0, "Микрофон", mic_cb,
+         "«По умолчанию» — системный микрофон Windows.")
+
     auto_var = tk.BooleanVar(value=config.autostart_enabled())
-    _check(sysf, 0, "Запускать вместе с Windows", auto_var,
+    _check(sysf, 2, "Запускать вместе с Windows", auto_var,
            "Тихий старт в трее при входе в систему.")
 
     # ============ Save / Close ============
