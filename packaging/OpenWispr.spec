@@ -2,7 +2,13 @@
 # Run from the repo root:  pyinstaller --noconfirm --clean packaging/OpenWispr.spec
 # Produces a windowed (no-console) app in dist\OpenWispr\OpenWispr.exe
 
+import os
+
 from PyInstaller.utils.hooks import collect_all
+
+# Paths in a spec resolve relative to the spec's directory, so anchor
+# everything to the repo root explicitly.
+ROOT = os.path.dirname(SPECPATH)
 
 datas, binaries, hiddenimports = [], [], []
 
@@ -24,8 +30,8 @@ for pkg in (
     hiddenimports += h
 
 a = Analysis(
-    ["openwispr/__main__.py"],
-    pathex=["."],
+    [os.path.join(ROOT, "openwispr", "__main__.py")],
+    pathex=[ROOT],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -48,7 +54,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,
-    icon="app.ico",
+    icon=os.path.join(ROOT, "app.ico"),
 )
 
 coll = COLLECT(
