@@ -95,11 +95,16 @@ python -m openwispr
 
 ### Ускорение на GPU (NVIDIA)
 
-Поставь устройство `cuda` и точность `float16`, затем установи рантайм CUDA:
+Поставь устройство `cuda`, точность `float16` (рекомендуемая модель —
+`large-v3-turbo`), затем установи рантайм CUDA в venv проекта:
 
 ```powershell
-pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+.venv\Scripts\python.exe -m pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cuda-runtime-cu12 nvidia-nvjitlink-cu12
 ```
+
+Приложение само найдёт эти библиотеки при запуске и настроит путь поиска DLL —
+вручную трогать `PATH` не нужно. Если всё равно не грузится — проверь
+`nvidia-smi`: должен показывать GPU и версию драйвера, совместимую с CUDA 12.x.
 
 ## 🛠️ Сборка установщика
 

@@ -95,11 +95,16 @@ Everything is configurable from the tray settings window (stored in
 
 ### GPU acceleration (NVIDIA)
 
-Set device `cuda` and compute `float16`, then install the CUDA runtime:
+Set device `cuda` and compute `float16`, then install the CUDA runtime into
+the project's venv (recommended model: `large-v3-turbo`):
 
 ```powershell
-pip install nvidia-cublas-cu12 nvidia-cudnn-cu12
+.venv\Scripts\python.exe -m pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cuda-runtime-cu12 nvidia-nvjitlink-cu12
 ```
+
+The app detects these on startup and wires up the DLL search path itself, no
+manual `PATH` changes needed. If it still won't load, `nvidia-smi` should show
+your GPU and driver version — CUDA 12.x compatible drivers are required.
 
 ## 🛠️ Build the installer
 

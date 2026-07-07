@@ -13,6 +13,7 @@ tray; click the icon to open settings.
 import os
 import sys
 import time
+import glob
 import queue
 import logging
 import threading
@@ -23,6 +24,26 @@ from pynput import keyboard
 import pyperclip
 from PIL import Image, ImageDraw
 import pystray
+
+
+def _add_nvidia_dll_dirs():
+    """Put pip-installed CUDA/cuDNN DLLs (nvidia-cublas-cu12, nvidia-cudnn-cu12,
+    ...) on PATH so ctranslate2 can find them via device='cuda'.
+
+    ctranslate2 loads these with plain LoadLibrary, which only searches PATH -
+    os.add_dll_directory is not enough. pip installs them under
+    <site-packages>/nvidia/<pkg>/bin with no matching system-wide install, so
+    without this GPU mode fails with "cublas64_12.dll is not found".
+    """
+    dirs = []
+    for entry in sys.path:
+        dirs += glob.glob(os.path.join(entry, "nvidia", "*", "bin"))
+    if dirs:
+        os.environ["PATH"] = os.pathsep.join(dirs) + os.pathsep + os.environ["PATH"]
+
+
+_add_nvidia_dll_dirs()
+
 from faster_whisper import WhisperModel
 
 from openwispr import config, settings_window, textproc
