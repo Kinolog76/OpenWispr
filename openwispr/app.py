@@ -34,35 +34,15 @@ def _add_nvidia_dll_dirs():
     os.add_dll_directory is not enough. pip installs them under
     <site-packages>/nvidia/<pkg>/bin with no matching system-wide install, so
     without this GPU mode fails with "cublas64_12.dll is not found".
-
-    In the packaged exe there is no site-packages: a `nvidia` folder dropped
-    next to OpenWispr.exe (or into _internal) is picked up instead.
     """
-    bases = list(sys.path)
-    if getattr(sys, "frozen", False):
-        bases.append(os.path.dirname(sys.executable))
-        bases.append(getattr(sys, "_MEIPASS", ""))
     dirs = []
-    for entry in bases:
-        if entry:
-            dirs += glob.glob(os.path.join(entry, "nvidia", "*", "bin"))
+    for entry in sys.path:
+        dirs += glob.glob(os.path.join(entry, "nvidia", "*", "bin"))
     if dirs:
         os.environ["PATH"] = os.pathsep.join(dirs) + os.pathsep + os.environ["PATH"]
 
 
-def _suppress_windows_error_dialogs():
-    """A failed LoadLibrary in a windowed exe can raise a hidden modal error
-    box that blocks the thread forever; disable those dialogs."""
-    try:
-        import ctypes
-        # SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX
-        ctypes.windll.kernel32.SetErrorMode(0x8003)
-    except Exception:
-        pass
-
-
 _add_nvidia_dll_dirs()
-_suppress_windows_error_dialogs()
 
 from faster_whisper import WhisperModel
 
@@ -73,9 +53,9 @@ try:
 except ImportError:
     winsound = None
 
-# Set OPENWISPR_LOG=1 to write flow.log (in %APPDATA%\OpenWispr) for debugging.
+# Set OPENWISPR_LOG=1 to write flow.log (next to this module) for debugging.
 ENABLE_LOG = os.environ.get("OPENWISPR_LOG") == "1"
-LOG_PATH = os.path.join(config.config_dir(), "flow.log")
+LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "flow.log")
 if ENABLE_LOG:
     logging.basicConfig(
         level=logging.INFO,
@@ -307,7 +287,6 @@ class App:
         self._mods_held = set()
         self._combo_active = False
         self._settings_open = False
-        self._cpu_fallback = False
         self.required_mods = frozenset(self.cfg["hotkey_mods"])
         self.icon = pystray.Icon(
             "OpenWispr", ICON_LOADING, "OpenWispr",
@@ -349,39 +328,12 @@ class App:
                                       compute_type=self.cfg["compute_type"])
         except Exception:
             log.exception("failed to load model")
-            if self._fallback_to_cpu("model load failed"):
-                return
             self._set_icon(ICON_LOADING, "OpenWispr — ошибка загрузки модели")
             return
-        # Warm-up inference: the first CUDA encode triggers kernel autotuning
-        # and allocations (10-30 s). Do it now so the first real dictation is
-        # instant. vad_filter=False forces the encoder to actually run.
-        try:
-            t0 = time.time()
-            segments, _ = self.model.transcribe(
-                np.zeros(SAMPLE_RATE // 2, dtype=np.float32),
-                vad_filter=False, beam_size=1)
-            list(segments)
-            log.info("warm-up done in %.1fs", time.time() - t0)
-        except Exception as e:
-            log.warning("warm-up failed (%s)", e)
-            if self._fallback_to_cpu(f"warm-up failed ({e})"):
-                return
         self.model_ready.set()
         self._set_icon(ICON_IDLE, self._ready_title())
         self.icon.update_menu()
         log.info("model ready")
-
-    def _fallback_to_cpu(self, reason):
-        """Switch this session to CPU when CUDA is unusable (e.g. the packaged
-        exe without CUDA DLLs). Runtime only — the saved config keeps cuda."""
-        if self.cfg["device"] != "cuda" or self._cpu_fallback:
-            return False
-        log.warning("falling back to CPU: %s", reason)
-        self._cpu_fallback = True
-        self.cfg = dict(self.cfg, device="cpu", compute_type="int8")
-        self._load_model()
-        return self.model_ready.is_set()
 
     def _reload_model_async(self):
         threading.Thread(target=self._load_model, daemon=True).start()
@@ -394,7 +346,6 @@ class App:
         old = self.cfg
         model_changed = any(new[k] != old[k] for k in
                             ("model_size", "device", "compute_type"))
-        self._cpu_fallback = False
         self.cfg = new
         config.save(new)
         self.required_mods = frozenset(new["hotkey_mods"])
@@ -421,16 +372,9 @@ class App:
             return
         try:
             text, _ = transcribe(self.model, self.cfg, audio)
-        except Exception as e:
+        except Exception:
             log.exception("transcription error")
-            # CUDA failures surface lazily on the first encode; retry on CPU.
-            if not self._fallback_to_cpu(f"transcription failed ({e})"):
-                return
-            try:
-                text, _ = transcribe(self.model, self.cfg, audio)
-            except Exception:
-                log.exception("CPU retry failed")
-                return
+            return
         if text:
             log.info("recognized: %s", text)
             self._insert(text)
