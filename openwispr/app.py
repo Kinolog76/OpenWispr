@@ -161,13 +161,19 @@ def beep(freq, dur=120):
             pass
 
 
+def _clean_device_name(name):
+    """Some devices (Bluetooth) embed newlines/driver junk in their names."""
+    return " ".join(name.split())
+
+
 def resolve_input_device(name):
     """Map a saved device name to a sounddevice index; None = system default."""
     if not name:
         return None
     try:
         for i, dev in enumerate(sd.query_devices()):
-            if dev["max_input_channels"] > 0 and dev["name"] == name:
+            if (dev["max_input_channels"] > 0
+                    and _clean_device_name(dev["name"]) == name):
                 return i
     except Exception:
         log.exception("could not enumerate audio devices")
@@ -185,9 +191,10 @@ def list_input_devices():
     names = []
     try:
         for dev in sd.query_devices():
-            if (dev["max_input_channels"] > 0 and dev["name"] not in names
-                    and not dev["name"].startswith(_DEVICE_ALIASES)):
-                names.append(dev["name"])
+            name = _clean_device_name(dev["name"])
+            if (dev["max_input_channels"] > 0 and name not in names
+                    and not name.startswith(_DEVICE_ALIASES)):
+                names.append(name)
     except Exception:
         pass
     return names

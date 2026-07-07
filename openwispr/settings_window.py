@@ -222,14 +222,7 @@ class Select(tk.Frame):
         popup = tk.Toplevel(self)
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
-        w = self.winfo_width()
-        x = self.winfo_rootx()
-        list_h = len(self.values) * self.ROW_H + 4
-        y = self.winfo_rooty() + self.winfo_height() + 2
-        # Open upward when the full list would run off the bottom of the screen.
-        if y + list_h > self.winfo_screenheight() - 8:
-            y = self.winfo_rooty() - list_h - 2
-        popup.geometry(f"{w}x{list_h}+{x}+{y}")
+        popup.withdraw()  # hide until rows are laid out and measured
 
         holder = tk.Frame(popup, bg="#FFFFFF",
                           highlightbackground=DROP_BORDER, highlightthickness=2)
@@ -247,6 +240,19 @@ class Select(tk.Frame):
             row.bind("<Enter>", lambda e, r=row: r.configure(bg=ACCENT_SOFT))
             row.bind("<Leave>", lambda e, r=row, c=is_cur: r.configure(
                 bg=ACCENT_SOFT if c else "#FFFFFF"))
+
+        # Size the popup to the real rendered height of the rows (fixed
+        # row-height math clipped the last item on high-DPI displays).
+        popup.update_idletasks()
+        w = self.winfo_width()
+        list_h = holder.winfo_reqheight()
+        x = self.winfo_rootx()
+        y = self.winfo_rooty() + self.winfo_height() + 2
+        # Open upward when the full list would run off the bottom of the screen.
+        if y + list_h > self.winfo_screenheight() - 8:
+            y = self.winfo_rooty() - list_h - 2
+        popup.geometry(f"{w}x{list_h}+{x}+{y}")
+        popup.deiconify()
 
         popup.bind("<Escape>", lambda e: self._close())
         popup.bind("<FocusOut>", lambda e: self._close())
