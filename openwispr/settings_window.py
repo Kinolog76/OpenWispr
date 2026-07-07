@@ -73,6 +73,11 @@ def open_settings(app):
 
 def _style(root):
     root.configure(bg=BG)
+    # The combobox dropdown is a plain tk Listbox; ttk styles don't reach it.
+    root.option_add("*TCombobox*Listbox.background", "#FFFFFF")
+    root.option_add("*TCombobox*Listbox.foreground", TEXT)
+    root.option_add("*TCombobox*Listbox.selectBackground", ACCENT)
+    root.option_add("*TCombobox*Listbox.selectForeground", "#FFFFFF")
     st = ttk.Style(root)
     try:
         st.theme_use("clam")
@@ -117,12 +122,14 @@ def _style(root):
            foreground=[("selected", "#FFFFFF"), ("active", ACCENT_DARK)])
 
     st.configure("TCombobox", fieldbackground="#FFFFFF", background="#FFFFFF",
-                 arrowcolor=MUTED, bordercolor=BORDER, lightcolor=BORDER,
-                 darkcolor=BORDER, padding=4)
+                 foreground=TEXT, arrowcolor=MUTED, bordercolor=BORDER,
+                 lightcolor=BORDER, darkcolor=BORDER, padding=4,
+                 selectbackground="#FFFFFF", selectforeground=TEXT)
     st.map("TCombobox",
-           fieldbackground=[("readonly", "#FFFFFF")],
-           selectbackground=[("readonly", "#FFFFFF")],
-           selectforeground=[("readonly", TEXT)])
+           fieldbackground=[("readonly", "#FFFFFF"), ("focus", "#FFFFFF")],
+           foreground=[("readonly", TEXT), ("focus", TEXT)],
+           selectbackground=[("readonly", "#FFFFFF"), ("focus", "#FFFFFF")],
+           selectforeground=[("readonly", TEXT), ("focus", TEXT)])
     st.configure("TEntry", fieldbackground="#FFFFFF", bordercolor=BORDER,
                  lightcolor=BORDER, darkcolor=BORDER, padding=4)
     st.configure("Horizontal.TScale", background=CARD, troughcolor=BORDER)
