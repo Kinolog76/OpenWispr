@@ -296,8 +296,8 @@ def _build(root, cfg, on_save, model_ready_fn=None):
     ttk.Entry(txt, textvariable=words_var).grid(
         row=5, column=0, columnspan=2, sticky="ew", pady=(0, 2))
     ttk.Label(txt,
-              text="Имена и термины через запятую — модель будет их узнавать.\n"
-                   "Например: Владислав, Kubernetes, OpenWispr, деплой, пул-реквест",
+              text="Термины через запятую — модель будет их узнавать.\n"
+                   "Например: Kubernetes, OpenWispr, деплой, пул-реквест",
               style="Muted.TLabel", justify="left").grid(
         row=6, column=0, columnspan=2, sticky="w")
 
